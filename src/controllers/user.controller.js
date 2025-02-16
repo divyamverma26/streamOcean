@@ -235,6 +235,74 @@ const updateAvatar = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, user, "Updated avatar"));
 });
 
+const getUserProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params; //as user profile will found from url not body
+    if (!username?.trim()) {
+        throw new ApiError(400, "Invalid username");
+    }
+
+    const channel = await User.aggregate(
+        {
+            $match: {
+                username: username?.toLowerCase(),
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+            },
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo",
+            },
+        },
+        {
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers",
+                },
+                subscribedToCount: {
+                    $size: "$subscriberTo",
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false,
+                    },
+                },
+            },
+        },
+        {
+            //to decide what fields to display
+            $project: {
+                fullName: 1,
+                username: 1,
+                isSubscribed: 1,
+                subscribedToCount: 1,
+                subscribersCount: 1,
+                avatar: 1,
+                coverImage: 1,
+            },
+        }
+    ); //aggregate return an array of matched users, in our case it will be one only
+
+    if (!channel?.length) {
+        throw new ApiError(401, "No user found");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, channel[0], "User details fetched"));
+});
+
 export {
     registerUser,
     loginUser,
@@ -243,4 +311,5 @@ export {
     changePassword,
     getCurrentUser,
     updateAvatar,
+    getUserProfile,
 };
