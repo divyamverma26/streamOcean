@@ -186,4 +186,61 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+const changePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user?._id);
+
+    if (!user) {
+        throw new ApiError(401, "Unauthorized access");
+    }
+
+    const isCorrect = await user.checkPassword(oldPassword);
+
+    if (!isCorrect) {
+        throw new ApiError(401, "Unauthorized access");
+    }
+
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(new ApiResponse(200, {}, "Password changed"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+        .status(200)
+        .json(new ApiResponse(200, req.user, "Current user fetched"));
+});
+
+const updateAvatar = asyncHandler(async (req, res) => {
+    const avatarLocalPath = req.file?.path;
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar is required");
+    }
+    const avatar = await uploadFile(avatarLocalPath);
+
+    if (!avatar) {
+        throw new ApiError(500, "Error while uploading file");
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: { avatar: avatar.url },
+        },
+        { new: true }
+    ).select("-password");
+
+    return res.status(200).json(200, user, "Updated avatar");
+});
+
+export {
+    registerUser,
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    changePassword,
+    getCurrentUser,
+    updateAvatar,
+};
