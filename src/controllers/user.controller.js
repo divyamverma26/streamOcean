@@ -152,7 +152,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
         const decodedUser = jwt.verify(
             incomingRefreshToken,
-            REFRESH_TOKEN_SECRET
+            process.env.REFRESH_TOKEN_SECRET
         );
 
         const user = await User.findById(decodedUser?._id);
@@ -242,7 +242,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid username");
     }
 
-    const channel = await User.aggregate(
+    const channel = await User.aggregate([
         {
             $match: {
                 username: username?.toLowerCase(),
@@ -270,7 +270,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
                     $size: "$subscribers",
                 },
                 subscribedToCount: {
-                    $size: "$subscriberTo",
+                    $size: "$subscribedTo",
                 },
                 isSubscribed: {
                     $cond: {
@@ -292,8 +292,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
                 avatar: 1,
                 coverImage: 1,
             },
-        }
-    ); //aggregate return an array of matched users, in our case it will be one only
+        },
+    ]); //aggregate return an array of matched users, in our case it will be one only
 
     if (!channel?.length) {
         throw new ApiError(401, "No user found");
@@ -305,9 +305,11 @@ const getUserProfile = asyncHandler(async (req, res) => {
 });
 
 const getUserHistory = asyncHandler(async (req, res) => {
-    const user = User.aggregate([
+    const user = await User.aggregate([
         {
-            _id: new mongoose.Types.ObjectId(req.user._id),
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id),
+            },
         },
         {
             $lookup: {
@@ -336,7 +338,7 @@ const getUserHistory = asyncHandler(async (req, res) => {
                     {
                         $addFields: {
                             owner: {
-                                $first: "owner",
+                                $first: "$owner",
                             },
                         },
                     },
